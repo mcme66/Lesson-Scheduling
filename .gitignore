@@ -1,0 +1,34 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Editor directories
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-workspace
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment / secrets (if added in the future)
+.env
+.env.local
+.env.*.local
+
+# Dependencies (if build tools are added later)
+node_modules/
+dist/
+
+# Note: firebase-config.js is intentionally NOT ignored.
+# Firebase web API keys are safe to commit — they identify the project
+# publicly. Security is enforced by Firestore Rules in the Firebase console.

@@ -217,10 +217,10 @@
 
 <footer>Questions? Reach out to your instructor directly.</footer>
 
-<script>
-const STORAGE_KEY = 'dance_schedule_v1';
-const BOOKINGS_KEY = 'dance_bookings_v1';
-const PENDING_KEY = 'dance_pending_v1';
+<script type="module">
+import { db } from './firebase-config.js';
+import { doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
 const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
 
 let slots = {};
@@ -246,22 +246,6 @@ function addMins(t, mins) {
   const [h,m] = t.split(':').map(Number);
   const total = h*60+m+mins, nh = Math.floor(total/60)%24, nm = total%60;
   return `${String(nh).padStart(2,'0')}:${String(nm).padStart(2,'0')}`;
-}
-
-function load() {
-  try {
-    const d = localStorage.getItem(STORAGE_KEY);
-    if (d) slots = JSON.parse(d);
-    const b = localStorage.getItem(BOOKINGS_KEY);
-    if (b) bookings = JSON.parse(b);
-    const p = localStorage.getItem(PENDING_KEY);
-    if (p) pendingRecurring = JSON.parse(p);
-  } catch(e) {}
-}
-
-function saveBookings() {
-  localStorage.setItem(BOOKINGS_KEY, JSON.stringify(bookings));
-  localStorage.setItem(PENDING_KEY, JSON.stringify(pendingRecurring));
 }
 
 function getWeekKey() {
@@ -292,6 +276,7 @@ function toggleRecurring() {
   sw.classList.toggle('on', wantsRecurring);
   wrap.classList.toggle('active', wantsRecurring);
 }
+window.toggleRecurring = toggleRecurring;
 
 function render() {
   const open = getOpenSlots();
@@ -305,10 +290,16 @@ function render() {
   const container = document.getElementById('slotsList');
   container.innerHTML = '';
 
+  const successShowing = document.getElementById('successBox').style.display === 'block';
+
   if (!open.length) {
     container.innerHTML = `<div class="no-slots"><div class="icon">📅</div><p>No open slots this week.<br>Check back soon or contact your instructor directly.</p></div>`;
-    document.getElementById('submitBtn').style.display = 'none';
+    if (!successShowing) document.getElementById('submitBtn').style.display = 'none';
     return;
+  }
+
+  if (!successShowing) {
+    document.getElementById('submitBtn').style.display = '';
   }
 
   open.forEach(({day, time}) => {
@@ -337,7 +328,6 @@ function selectSlot(day, time, card) {
   document.querySelectorAll('.slot-card.selected').forEach(c => c.classList.remove('selected'));
   card.classList.add('selected');
   selectedSlot = {day, time};
-  // reset toggle
   wantsRecurring = false;
   document.getElementById('toggleSwitch').classList.remove('on');
   document.getElementById('recurringWrap').classList.remove('active');
@@ -347,11 +337,15 @@ function selectSlot(day, time, card) {
   document.getElementById('formBox').scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 
-function submitBooking() {
+async function submitBooking() {
   const name = document.getElementById('fieldName').value.trim();
   const contact = document.getElementById('fieldContact').value.trim();
   if (!name || !contact) { alert('Please fill in your name and contact info.'); return; }
   if (!selectedSlot) return;
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
 
   const {day, time} = selectedSlot;
   const wk = getWeekKey();
@@ -364,13 +358,23 @@ function submitBooking() {
     }
   }
 
-  saveBookings();
+  try {
+    await setDoc(doc(db, 'schedule', 'bookings'), bookings);
+    if (wantsRecurring) {
+      await setDoc(doc(db, 'schedule', 'pending'), { items: pendingRecurring });
+    }
+  } catch(e) {
+    console.error('Booking error:', e);
+    alert('Could not save your booking. Please try again.');
+    btn.disabled = false;
+    btn.textContent = `Book ${day} ${fmtTime(time)}`;
+    return;
+  }
 
   const mon = getMonday(new Date().toISOString().split('T')[0]);
   const d = new Date(mon);
   d.setDate(d.getDate() + DAYS.indexOf(day));
 
-  // Show full booking detail with student name and lesson info
   document.getElementById('bookedDetail').innerHTML =
     `<strong>${name}</strong><br>${day}, ${fmt(d)}<br>${fmtTime(time)} – ${fmtTime(addMins(time,45))} · 45 min private lesson`;
 
@@ -384,12 +388,21 @@ function submitBooking() {
   document.getElementById('formBox').style.display = 'none';
   document.getElementById('submitBtn').style.display = 'none';
   document.getElementById('successBox').scrollIntoView({behavior:'smooth'});
-
   render();
 }
+window.submitBooking = submitBooking;
 
-load();
-render();
+onSnapshot(doc(db, 'schedule', 'slots'), snap => {
+  slots = snap.exists() ? (snap.data() || {}) : {};
+  render();
+});
+onSnapshot(doc(db, 'schedule', 'bookings'), snap => {
+  bookings = snap.exists() ? (snap.data() || {}) : {};
+  render();
+});
+onSnapshot(doc(db, 'schedule', 'pending'), snap => {
+  pendingRecurring = snap.exists() ? (snap.data().items || []) : [];
+});
 </script>
 </body>
 </html>

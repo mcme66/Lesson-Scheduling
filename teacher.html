@@ -316,29 +316,28 @@
 
 <div class="toast" id="toast"></div>
 
-<script>
+<script type="module">
+import { db } from './firebase-config.js';
+import { doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
 const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
 let slots = {Monday:[],Tuesday:[],Wednesday:[],Thursday:[],Friday:[]};
 let bookings = {};
 let pendingRecurring = [];
 
-const STORAGE_KEY = 'dance_schedule_v1';
-const BOOKINGS_KEY = 'dance_bookings_v1';
-const PENDING_KEY = 'dance_pending_v1';
-
 function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(slots));
+  setDoc(doc(db, 'schedule', 'slots'), slots)
+    .catch(() => toast('Error saving — please try again'));
 }
 
-function load() {
-  try {
-    const d = localStorage.getItem(STORAGE_KEY);
-    if (d) slots = JSON.parse(d);
-    const b = localStorage.getItem(BOOKINGS_KEY);
-    if (b) bookings = JSON.parse(b);
-    const p = localStorage.getItem(PENDING_KEY);
-    if (p) pendingRecurring = JSON.parse(p);
-  } catch(e) {}
+function saveBookings() {
+  setDoc(doc(db, 'schedule', 'bookings'), bookings)
+    .catch(() => toast('Error saving bookings'));
+}
+
+function savePending() {
+  setDoc(doc(db, 'schedule', 'pending'), { items: pendingRecurring })
+    .catch(() => toast('Error saving pending requests'));
 }
 
 function getMonday(d) {
@@ -433,20 +432,22 @@ function approveRecurring(idx) {
   slot.student = name;
   pendingRecurring.splice(idx, 1);
   save();
-  localStorage.setItem(PENDING_KEY, JSON.stringify(pendingRecurring));
+  savePending();
   renderAll();
   toast(`${name} approved — weekly spot locked in for ${day} ${fmtTime(time)}`);
 }
+window.approveRecurring = approveRecurring;
 
 function declineRecurring(idx) {
   const req = pendingRecurring[idx];
   if (!req) return;
   if (!confirm(`Decline weekly spot request from ${req.name}?`)) return;
   pendingRecurring.splice(idx, 1);
-  localStorage.setItem(PENDING_KEY, JSON.stringify(pendingRecurring));
+  savePending();
   renderPending();
   toast('Request declined');
 }
+window.declineRecurring = declineRecurring;
 
 function renderBookings() {
   const wk = getWeekKey();
@@ -456,11 +457,7 @@ function renderBookings() {
   const weekBookings = Object.entries(bookings)
     .filter(([key]) => wk && key.startsWith(wk))
     .map(([key, val]) => {
-      const parts = key.split('-');
-      // key format: YYYY-MM-DD-Day-HH:MM  (date is first 3 parts, day is next, time is last)
-      // actually key = `${wk}-${day}-${time}` where wk = YYYY-MM-DD
-      // So split on wk prefix
-      const rest = key.slice(wk.length + 1); // "Day-HH:MM"
+      const rest = key.slice(wk.length + 1); // "Day-HH:MM" e.g. "Monday-10:00"
       const dashIdx = rest.lastIndexOf('-');
       const day = rest.slice(0, dashIdx);
       const time = rest.slice(dashIdx + 1);
@@ -479,7 +476,7 @@ function renderBookings() {
   }
 
   container.innerHTML = '';
-  weekBookings.forEach(({day, time, name, contact, bookedAt, key}) => {
+  weekBookings.forEach(({day, time, name, contact, bookedAt, recurringRequested, key}) => {
     let dateStr = '';
     if (wi) {
       const d = new Date(wi.mon);
@@ -487,7 +484,6 @@ function renderBookings() {
       dateStr = fmt(d);
     }
     const bookedTime = bookedAt ? new Date(bookedAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '';
-    const isRecurringReq = val.recurringRequested;
     const row = document.createElement('div');
     row.className = 'booking-row';
     row.innerHTML = `
@@ -497,7 +493,7 @@ function renderBookings() {
       </div>
       <div class="b-name">${name}</div>
       <div class="b-contact">${contact}</div>
-      ${isRecurringReq ? `<span class="b-recurring-badge">↻ Weekly requested</span>` : ''}
+      ${recurringRequested ? `<span class="b-recurring-badge">↻ Weekly requested</span>` : ''}
       ${bookedTime ? `<div class="b-time">Booked ${bookedTime}</div>` : ''}
       <button class="b-cancel" onclick="cancelBooking('${key}')">Cancel</button>`;
     container.appendChild(row);
@@ -507,10 +503,11 @@ function renderBookings() {
 function cancelBooking(key) {
   if (!confirm('Remove this booking? The slot will reopen for students.')) return;
   delete bookings[key];
-  localStorage.setItem(BOOKINGS_KEY, JSON.stringify(bookings));
+  saveBookings();
   renderBookings();
   toast('Booking removed — slot is open again');
 }
+window.cancelBooking = cancelBooking;
 
 function renderGrid() {
   const grid = document.getElementById('dayGrid');
@@ -557,6 +554,7 @@ function toggleAssign(id) {
   el.style.display = el.style.display === 'flex' ? 'none' : 'flex';
   if (el.style.display === 'flex') document.getElementById('ai-'+id)?.focus();
 }
+window.toggleAssign = toggleAssign;
 
 function assignStudent(day, time, id) {
   const inp = document.getElementById('ai-'+id);
@@ -565,12 +563,14 @@ function assignStudent(day, time, id) {
   if (s) s.student = inp.value.trim();
   save(); renderAll();
 }
+window.assignStudent = assignStudent;
 
 function clearStudent(day, time) {
   const s = (slots[day]||[]).find(x => x.time === time);
   if (s) delete s.student;
   save(); renderAll();
 }
+window.clearStudent = clearStudent;
 
 function addSlot(day) {
   const inp = document.getElementById('ti-'+day);
@@ -583,11 +583,13 @@ function addSlot(day) {
   }
   inp.value = '';
 }
+window.addSlot = addSlot;
 
 function removeSlot(day, time) {
   slots[day] = (slots[day]||[]).filter(x => x.time !== time);
   save(); renderAll();
 }
+window.removeSlot = removeSlot;
 
 function getAllSlots() {
   const all = [];
@@ -630,6 +632,7 @@ function saveUrl() {
   const val = document.getElementById('studentUrl').value.trim();
   if (val) { localStorage.setItem('dance_student_url', val); toast('URL saved!'); }
 }
+window.saveUrl = saveUrl;
 
 function getStudentUrl() {
   return localStorage.getItem('dance_student_url') || '';
@@ -640,6 +643,7 @@ function copyStudentLink() {
   if (!url) { toast('Enter your student page URL first'); return; }
   navigator.clipboard.writeText(url).then(() => toast('Link copied!'));
 }
+window.copyStudentLink = copyStudentLink;
 
 function copySlotText() {
   const wi = getWeekInfo();
@@ -657,6 +661,7 @@ function copySlotText() {
   const title = wi ? wi.label : 'Private Lessons';
   navigator.clipboard.writeText(`Private Lesson Slots — ${title}\n\n${lines.join('\n')}\n\nSign up: ${getStudentUrl()}`).then(() => toast('Copied!'));
 }
+window.copySlotText = copySlotText;
 
 function downloadQR() {
   const url = getStudentUrl();
@@ -666,16 +671,30 @@ function downloadQR() {
   a.href = qrUrl; a.download = 'lesson-signup-qr.png'; a.target = '_blank';
   a.click();
 }
+window.downloadQR = downloadQR;
 
-document.getElementById('weekStart').addEventListener('change', () => { renderPreview(); renderBookings(); renderPending(); });
+document.getElementById('weekStart').addEventListener('change', () => {
+  renderPreview(); renderBookings(); renderPending();
+});
 
 const today = new Date();
 const mon = getMonday(today.toISOString().split('T')[0]);
 document.getElementById('weekStart').value = mon.toISOString().split('T')[0];
 const storedUrl = localStorage.getItem('dance_student_url');
 if (storedUrl) document.getElementById('studentUrl').value = storedUrl;
-load();
-renderAll();
+
+onSnapshot(doc(db, 'schedule', 'slots'), snap => {
+  slots = snap.exists() ? (snap.data() || {Monday:[],Tuesday:[],Wednesday:[],Thursday:[],Friday:[]}) : {Monday:[],Tuesday:[],Wednesday:[],Thursday:[],Friday:[]};
+  renderAll();
+});
+onSnapshot(doc(db, 'schedule', 'bookings'), snap => {
+  bookings = snap.exists() ? (snap.data() || {}) : {};
+  renderBookings();
+});
+onSnapshot(doc(db, 'schedule', 'pending'), snap => {
+  pendingRecurring = snap.exists() ? (snap.data().items || []) : [];
+  renderPending();
+});
 </script>
 </body>
 </html>
