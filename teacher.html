@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson Scheduler — Teacher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1a1a18;
+    --paper: #f7f5f0;
+    --cream: #ede9e0;
+    --accent: #c8401a;
+    --accent-light: #f5e8e3;
+    --green: #2d6a4f;
+    --green-light: #e8f3ed;
+    --border: #d4cfc4;
+    --muted: #8a8578;
+    --white: #ffffff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--paper); color: var(--ink); min-height: 100vh; }
+
+  header {
+    background: var(--ink);
+    color: var(--white);
+    padding: 1.25rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h1 { font-family: 'DM Serif Display', serif; font-size: 1.4rem; font-weight: 400; letter-spacing: .02em; }
+  header .badge { font-size: 11px; background: var(--accent); color: white; padding: 3px 10px; border-radius: 20px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; }
+
+  .main { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+  .week-bar {
+    display: flex; align-items: center; gap: 1rem;
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1.75rem;
+  }
+  .week-bar label { font-size: 12px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; }
+  .week-bar input[type=date] {
+    border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px;
+    font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--ink);
+    background: var(--paper); cursor: pointer;
+  }
+  .week-label { font-size: 14px; color: var(--muted); }
+
+  .day-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 1.75rem; }
+
+  .day-col {
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .day-head {
+    font-size: 11px; font-weight: 500; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .08em; padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .slot-list { display: flex; flex-direction: column; gap: 5px; flex: 1; }
+
+  .slot-chip {
+    border-radius: 8px; padding: 6px 8px; font-size: 11px;
+    border: 1px solid var(--border); background: var(--paper);
+  }
+  .slot-chip.recurring { border-color: #a8d5be; background: var(--green-light); }
+
+  .chip-row { display: flex; align-items: center; justify-content: space-between; }
+  .chip-time { font-weight: 500; font-size: 12px; color: var(--ink); }
+  .slot-chip.recurring .chip-time { color: var(--green); }
+  .chip-btns { display: flex; gap: 2px; }
+  .chip-btn {
+    background: none; border: none; cursor: pointer; padding: 2px 3px;
+    color: var(--muted); font-size: 13px; line-height: 1; border-radius: 4px;
+  }
+  .chip-btn:hover { background: var(--cream); color: var(--ink); }
+  .chip-student { font-size: 10px; color: var(--green); margin-top: 2px; display: flex; align-items: center; gap: 3px; }
+
+  .assign-form { display: none; flex-direction: column; gap: 4px; margin-top: 4px; }
+  .assign-form input {
+    font-family: 'DM Sans', sans-serif; font-size: 11px;
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 4px 7px; background: var(--white); width: 100%;
+  }
+  .assign-form button {
+    font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500;
+    background: var(--green); color: white; border: none; border-radius: 6px;
+    padding: 4px 8px; cursor: pointer;
+  }
+  .assign-form button:hover { background: #235a42; }
+
+  .add-row { display: flex; gap: 5px; margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--cream); }
+  .add-row input[type=time] {
+    flex: 1; font-family: 'DM Sans', sans-serif; font-size: 11px;
+    border: 1px solid var(--border); border-radius: 6px; padding: 5px 6px;
+    background: var(--paper); min-width: 0;
+  }
+  .add-row button {
+    background: var(--ink); color: white; border: none; border-radius: 6px;
+    padding: 5px 8px; cursor: pointer; font-size: 14px; line-height: 1;
+    flex-shrink: 0;
+  }
+  .add-row button:hover { background: #333; }
+
+  .bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+
+  .preview-box {
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.25rem;
+  }
+  .box-title {
+    font-size: 11px; font-weight: 500; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .08em;
+    margin-bottom: 1rem; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .stats { display: flex; gap: 12px; }
+  .stat { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 500; }
+  .stat.open { background: #e8edf5; color: #2a4a7a; }
+  .stat.taken { background: var(--green-light); color: var(--green); }
+
+  .preview-slot { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--cream); font-size: 12px; }
+  .preview-slot:last-child { border-bottom: none; }
+  .p-badge { font-size: 10px; font-weight: 500; padding: 2px 6px; border-radius: 4px; min-width: 40px; text-align: center; }
+  .p-badge.open { background: #e8edf5; color: #2a4a7a; }
+  .p-badge.taken { background: var(--green-light); color: var(--green); }
+  .p-student { font-size: 11px; color: var(--green); margin-left: auto; }
+  .empty-note { font-size: 13px; color: var(--muted); padding: .5rem 0; }
+
+  .actions-box {
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.25rem;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .action-btn {
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+    padding: 10px 16px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--border); text-align: left;
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    transition: background .15s;
+  }
+  .action-btn.primary { background: var(--accent); color: white; border-color: var(--accent); }
+  .action-btn.primary:hover { background: #a83314; }
+  .action-btn.secondary { background: var(--paper); color: var(--ink); }
+  .action-btn.secondary:hover { background: var(--cream); }
+  .action-btn .icon { font-size: 16px; }
+  .action-btn .desc { font-size: 11px; font-weight: 400; color: inherit; opacity: .75; margin-top: 1px; }
+
+  .hint { font-size: 12px; color: var(--muted); line-height: 1.6; padding: .75rem; background: var(--cream); border-radius: 8px; }
+  .hint a { color: var(--accent); text-decoration: none; font-weight: 500; }
+  .hint a:hover { text-decoration: underline; }
+
+  .toast {
+    position: fixed; bottom: 1.5rem; right: 1.5rem;
+    background: var(--ink); color: white; font-size: 13px;
+    padding: 10px 18px; border-radius: 8px;
+    opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 100;
+  }
+  .toast.show { opacity: 1; }
+
+  .student-url-row { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+  .student-url-row input {
+    flex: 1; font-family: 'DM Sans', sans-serif; font-size: 12px;
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 8px; background: var(--paper); color: var(--muted);
+  }
+  .student-url-row button {
+    font-family: 'DM Sans', sans-serif; font-size: 12px;
+    background: var(--ink); color: white; border: none;
+    border-radius: 6px; padding: 6px 10px; cursor: pointer; white-space: nowrap;
+  }
+
+  .bookings-section {
+    margin-top: 1.25rem;
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.25rem;
+  }
+  .bookings-section .box-title { margin-bottom: 1rem; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .booking-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 0; border-bottom: 1px solid var(--cream);
+    font-size: 13px;
+  }
+  .booking-row:last-child { border-bottom: none; }
+  .b-slot { min-width: 130px; font-weight: 500; color: var(--ink); }
+  .b-day { font-size: 10px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .b-name { flex: 1; color: var(--ink); }
+  .b-contact { font-size: 12px; color: var(--muted); }
+  .b-time { font-size: 11px; color: var(--muted); margin-left: auto; white-space: nowrap; }
+  .b-cancel {
+    background: none; border: 1px solid var(--border); border-radius: 6px;
+    color: var(--muted); font-size: 11px; padding: 3px 8px; cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .b-cancel:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+  .no-bookings { font-size: 13px; color: var(--muted); padding: .25rem 0; }
+  .b-recurring-badge {
+    font-size: 10px; font-weight: 500; padding: 2px 7px; border-radius: 20px;
+    background: var(--green-light); color: var(--green); white-space: nowrap;
+    border: 1px solid #a8d5be;
+  }
+
+  .pending-section {
+    margin-top: 1.25rem;
+    background: var(--white); border: 2px solid #f0c090;
+    border-radius: 12px; padding: 1.25rem;
+  }
+  .pending-section .box-title { margin-bottom: 1rem; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .stat.pending { background: #fef3e2; color: #a05a00; }
+  .pending-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 0; border-bottom: 1px solid var(--cream); font-size: 13px;
+  }
+  .pending-row:last-child { border-bottom: none; }
+  .p-slot-info { min-width: 140px; }
+  .p-slot-info .p-slot-day { font-size: 10px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .p-slot-info .p-slot-time { font-weight: 500; color: var(--ink); }
+  .p-student-info { flex: 1; }
+  .p-student-info .p-name { font-weight: 500; color: var(--ink); }
+  .p-student-info .p-contact { font-size: 12px; color: var(--muted); }
+  .p-requested { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .p-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .btn-approve {
+    font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500;
+    background: var(--green); color: white; border: none;
+    border-radius: 6px; padding: 5px 10px; cursor: pointer;
+  }
+  .btn-approve:hover { background: #235a42; }
+  .btn-decline {
+    font-family: 'DM Sans', sans-serif; font-size: 11px;
+    background: none; border: 1px solid var(--border); color: var(--muted);
+    border-radius: 6px; padding: 5px 10px; cursor: pointer;
+  }
+  .btn-decline:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+  .no-pending { font-size: 13px; color: var(--muted); padding: .25rem 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Lesson Scheduler</h1>
+  <span class="badge">Teacher</span>
+</header>
+
+<div class="main">
+
+  <div class="week-bar">
+    <label>Week of</label>
+    <input type="date" id="weekStart">
+    <span class="week-label" id="weekLabel"></span>
+  </div>
+
+  <div class="day-grid" id="dayGrid"></div>
+
+  <div class="bottom">
+    <div class="preview-box">
+      <div class="box-title">
+        <span>This week</span>
+        <div class="stats">
+          <span class="stat open" id="statOpen">0 open</span>
+          <span class="stat taken" id="statTaken">0 recurring</span>
+        </div>
+      </div>
+      <div id="previewSlots"><span class="empty-note">No slots added yet.</span></div>
+    </div>
+
+    <div class="actions-box">
+      <div class="box-title"><span>Share with students</span></div>
+
+      <div class="hint">
+        Set your student page URL after you host the files. Students open <strong>student.html</strong> — they'll see only your open slots for the week.
+      </div>
+
+      <div>
+        <div style="font-size:11px;font-weight:500;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em;">Student page URL</div>
+        <div class="student-url-row">
+          <input type="text" id="studentUrl" placeholder="https://yoursite.netlify.app/student.html">
+          <button onclick="saveUrl()">Save</button>
+        </div>
+      </div>
+
+      <button class="action-btn primary" onclick="copyStudentLink()">
+        <span class="icon">🔗</span>
+        <span><span>Copy student link</span><br><span class="desc">Send this to students to sign up</span></span>
+      </button>
+      <button class="action-btn secondary" onclick="downloadQR()">
+        <span class="icon">⬛</span>
+        <span><span>Download QR code</span><br><span class="desc">Print or share for easy scanning</span></span>
+      </button>
+      <button class="action-btn secondary" onclick="copySlotText()">
+        <span class="icon">📋</span>
+        <span><span>Copy slots as text</span><br><span class="desc">Paste into a message or email</span></span>
+      </button>
+    </div>
+  </div>
+
+  <div class="bookings-section">
+    <div class="box-title">
+      <span>Student bookings this week</span>
+      <span class="stat taken" id="statBookings">0 booked</span>
+    </div>
+    <div id="bookingsList"><span class="no-bookings">No bookings yet this week.</span></div>
+  </div>
+
+  <div class="pending-section" id="pendingSection" style="display:none">
+    <div class="box-title">
+      <span>⏳ Weekly spot requests</span>
+      <span class="stat pending" id="statPending">0 pending</span>
+    </div>
+    <div id="pendingList"><span class="no-pending">No pending requests.</span></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
+let slots = {Monday:[],Tuesday:[],Wednesday:[],Thursday:[],Friday:[]};
+let bookings = {};
+let pendingRecurring = [];
+
+const STORAGE_KEY = 'dance_schedule_v1';
+const BOOKINGS_KEY = 'dance_bookings_v1';
+const PENDING_KEY = 'dance_pending_v1';
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(slots));
+}
+
+function load() {
+  try {
+    const d = localStorage.getItem(STORAGE_KEY);
+    if (d) slots = JSON.parse(d);
+    const b = localStorage.getItem(BOOKINGS_KEY);
+    if (b) bookings = JSON.parse(b);
+    const p = localStorage.getItem(PENDING_KEY);
+    if (p) pendingRecurring = JSON.parse(p);
+  } catch(e) {}
+}
+
+function getMonday(d) {
+  const date = new Date(d + 'T12:00:00');
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  date.setDate(date.getDate() + diff);
+  return date;
+}
+function fmt(d) { return d.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
+function fmtTime(t) {
+  const [h,m] = t.split(':');
+  const hr = parseInt(h), ampm = hr >= 12 ? 'PM' : 'AM', h12 = hr % 12 || 12;
+  return m === '00' ? `${h12} ${ampm}` : `${h12}:${m} ${ampm}`;
+}
+function addMins(t, mins) {
+  const [h,m] = t.split(':').map(Number);
+  const total = h*60+m+mins, nh = Math.floor(total/60)%24, nm = total%60;
+  return `${String(nh).padStart(2,'0')}:${String(nm).padStart(2,'0')}`;
+}
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+function getWeekInfo() {
+  const val = document.getElementById('weekStart').value;
+  if (!val) return null;
+  const mon = getMonday(val);
+  const fri = new Date(mon); fri.setDate(fri.getDate()+4);
+  return { mon, fri, label: `Week of ${fmt(mon)} – ${fmt(fri)}` };
+}
+
+function renderAll() {
+  renderGrid(); renderPreview(); renderBookings(); renderPending();
+}
+
+function getWeekKey() {
+  const val = document.getElementById('weekStart').value;
+  if (!val) return null;
+  const mon = getMonday(val);
+  return mon.toISOString().split('T')[0];
+}
+
+function renderPending() {
+  const container = document.getElementById('pendingList');
+  const section = document.getElementById('pendingSection');
+  document.getElementById('statPending').textContent = `${pendingRecurring.length} pending`;
+  section.style.display = pendingRecurring.length ? 'block' : 'none';
+
+  if (!pendingRecurring.length) {
+    container.innerHTML = '<span class="no-pending">No pending requests.</span>';
+    return;
+  }
+  container.innerHTML = '';
+  pendingRecurring.forEach((req, idx) => {
+    const { day, time, name, contact, requestedAt } = req;
+    const reqTime = requestedAt ? new Date(requestedAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '';
+    const row = document.createElement('div');
+    row.className = 'pending-row';
+    row.innerHTML = `
+      <div class="p-slot-info">
+        <div class="p-slot-day">${day}</div>
+        <div class="p-slot-time">${fmtTime(time)}–${fmtTime(addMins(time,45))}</div>
+      </div>
+      <div class="p-student-info">
+        <div class="p-name">${name}</div>
+        <div class="p-contact">${contact}</div>
+      </div>
+      ${reqTime ? `<div class="p-requested">Requested ${reqTime}</div>` : ''}
+      <div class="p-actions">
+        <button class="btn-approve" onclick="approveRecurring(${idx})">Approve</button>
+        <button class="btn-decline" onclick="declineRecurring(${idx})">Decline</button>
+      </div>`;
+    container.appendChild(row);
+  });
+}
+
+function approveRecurring(idx) {
+  const req = pendingRecurring[idx];
+  if (!req) return;
+  const { day, time, name } = req;
+  // Assign as recurring student on that slot
+  if (!slots[day]) slots[day] = [];
+  let slot = slots[day].find(x => x.time === time);
+  if (!slot) {
+    // slot may not exist yet — add it
+    slot = { time };
+    slots[day].push(slot);
+  }
+  slot.student = name;
+  pendingRecurring.splice(idx, 1);
+  save();
+  localStorage.setItem(PENDING_KEY, JSON.stringify(pendingRecurring));
+  renderAll();
+  toast(`${name} approved — weekly spot locked in for ${day} ${fmtTime(time)}`);
+}
+
+function declineRecurring(idx) {
+  const req = pendingRecurring[idx];
+  if (!req) return;
+  if (!confirm(`Decline weekly spot request from ${req.name}?`)) return;
+  pendingRecurring.splice(idx, 1);
+  localStorage.setItem(PENDING_KEY, JSON.stringify(pendingRecurring));
+  renderPending();
+  toast('Request declined');
+}
+
+function renderBookings() {
+  const wk = getWeekKey();
+  const wi = getWeekInfo();
+  const container = document.getElementById('bookingsList');
+
+  const weekBookings = Object.entries(bookings)
+    .filter(([key]) => wk && key.startsWith(wk))
+    .map(([key, val]) => {
+      const parts = key.split('-');
+      // key format: YYYY-MM-DD-Day-HH:MM  (date is first 3 parts, day is next, time is last)
+      // actually key = `${wk}-${day}-${time}` where wk = YYYY-MM-DD
+      // So split on wk prefix
+      const rest = key.slice(wk.length + 1); // "Day-HH:MM"
+      const dashIdx = rest.lastIndexOf('-');
+      const day = rest.slice(0, dashIdx);
+      const time = rest.slice(dashIdx + 1);
+      return { day, time, ...val, key };
+    })
+    .sort((a,b) => {
+      const di = DAYS.indexOf(a.day) - DAYS.indexOf(b.day);
+      return di !== 0 ? di : a.time.localeCompare(b.time);
+    });
+
+  document.getElementById('statBookings').textContent = `${weekBookings.length} booked`;
+
+  if (!weekBookings.length) {
+    container.innerHTML = '<span class="no-bookings">No student bookings yet this week.</span>';
+    return;
+  }
+
+  container.innerHTML = '';
+  weekBookings.forEach(({day, time, name, contact, bookedAt, key}) => {
+    let dateStr = '';
+    if (wi) {
+      const d = new Date(wi.mon);
+      d.setDate(d.getDate() + DAYS.indexOf(day));
+      dateStr = fmt(d);
+    }
+    const bookedTime = bookedAt ? new Date(bookedAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '';
+    const isRecurringReq = val.recurringRequested;
+    const row = document.createElement('div');
+    row.className = 'booking-row';
+    row.innerHTML = `
+      <div class="b-slot">
+        <div class="b-day">${day} · ${dateStr}</div>
+        <div>${fmtTime(time)}–${fmtTime(addMins(time,45))}</div>
+      </div>
+      <div class="b-name">${name}</div>
+      <div class="b-contact">${contact}</div>
+      ${isRecurringReq ? `<span class="b-recurring-badge">↻ Weekly requested</span>` : ''}
+      ${bookedTime ? `<div class="b-time">Booked ${bookedTime}</div>` : ''}
+      <button class="b-cancel" onclick="cancelBooking('${key}')">Cancel</button>`;
+    container.appendChild(row);
+  });
+}
+
+function cancelBooking(key) {
+  if (!confirm('Remove this booking? The slot will reopen for students.')) return;
+  delete bookings[key];
+  localStorage.setItem(BOOKINGS_KEY, JSON.stringify(bookings));
+  renderBookings();
+  toast('Booking removed — slot is open again');
+}
+
+function renderGrid() {
+  const grid = document.getElementById('dayGrid');
+  grid.innerHTML = '';
+  DAYS.forEach(day => {
+    const col = document.createElement('div');
+    col.className = 'day-col';
+    const sorted = [...(slots[day]||[])].sort((a,b) => a.time.localeCompare(b.time));
+
+    const chipsHtml = sorted.map(s => {
+      const id = `${day}-${s.time.replace(':','-')}`;
+      return `<div class="slot-chip${s.student?' recurring':''}">
+        <div class="chip-row">
+          <span class="chip-time">${fmtTime(s.time)}</span>
+          <div class="chip-btns">
+            ${s.student
+              ? `<button class="chip-btn" onclick="clearStudent('${day}','${s.time}')" title="Remove recurring student">✕</button>`
+              : `<button class="chip-btn" onclick="toggleAssign('${id}')" title="Assign recurring student">👤</button>`}
+            <button class="chip-btn" onclick="removeSlot('${day}','${s.time}')" title="Remove slot">🗑</button>
+          </div>
+        </div>
+        ${s.student ? `<div class="chip-student">↻ ${s.student}</div>` : ''}
+        ${!s.student ? `<div class="assign-form" id="af-${id}">
+          <input type="text" id="ai-${id}" placeholder="Student name (recurring)">
+          <button onclick="assignStudent('${day}','${s.time}','${id}')">Save recurring</button>
+        </div>` : ''}
+      </div>`;
+    }).join('');
+
+    col.innerHTML = `
+      <div class="day-head">${day.slice(0,3)}</div>
+      <div class="slot-list">${chipsHtml || '<span style="font-size:11px;color:var(--muted)">—</span>'}</div>
+      <div class="add-row">
+        <input type="time" id="ti-${day}" step="900">
+        <button onclick="addSlot('${day}')">+</button>
+      </div>`;
+    grid.appendChild(col);
+  });
+}
+
+function toggleAssign(id) {
+  const el = document.getElementById('af-'+id);
+  if (!el) return;
+  el.style.display = el.style.display === 'flex' ? 'none' : 'flex';
+  if (el.style.display === 'flex') document.getElementById('ai-'+id)?.focus();
+}
+
+function assignStudent(day, time, id) {
+  const inp = document.getElementById('ai-'+id);
+  if (!inp || !inp.value.trim()) return;
+  const s = (slots[day]||[]).find(x => x.time === time);
+  if (s) s.student = inp.value.trim();
+  save(); renderAll();
+}
+
+function clearStudent(day, time) {
+  const s = (slots[day]||[]).find(x => x.time === time);
+  if (s) delete s.student;
+  save(); renderAll();
+}
+
+function addSlot(day) {
+  const inp = document.getElementById('ti-'+day);
+  const val = inp.value;
+  if (!val) return;
+  if (!slots[day]) slots[day] = [];
+  if (!slots[day].find(x => x.time === val)) {
+    slots[day].push({time: val});
+    save(); renderAll();
+  }
+  inp.value = '';
+}
+
+function removeSlot(day, time) {
+  slots[day] = (slots[day]||[]).filter(x => x.time !== time);
+  save(); renderAll();
+}
+
+function getAllSlots() {
+  const all = [];
+  DAYS.forEach(day => {
+    [...(slots[day]||[])].sort((a,b) => a.time.localeCompare(b.time))
+      .forEach(s => all.push({day, ...s}));
+  });
+  return all;
+}
+
+function renderPreview() {
+  const wi = getWeekInfo();
+  const all = getAllSlots();
+  const open = all.filter(x => !x.student);
+  const taken = all.filter(x => x.student);
+  document.getElementById('statOpen').textContent = `${open.length} open`;
+  document.getElementById('statTaken').textContent = `${taken.length} recurring`;
+  document.getElementById('weekLabel').textContent = wi ? wi.label : '';
+
+  const container = document.getElementById('previewSlots');
+  if (!all.length) { container.innerHTML = '<span class="empty-note">No slots added yet.</span>'; return; }
+  container.innerHTML = '';
+  all.forEach(({day, time, student}) => {
+    let dateStr = '';
+    if (wi) {
+      const d = new Date(wi.mon);
+      d.setDate(d.getDate() + DAYS.indexOf(day));
+      dateStr = ` · ${fmt(d)}`;
+    }
+    const row = document.createElement('div');
+    row.className = 'preview-slot';
+    row.innerHTML = `<span class="p-badge ${student?'taken':'open'}">${day.slice(0,3)}</span>
+      <span>${fmtTime(time)}${dateStr}</span>
+      ${student ? `<span class="p-student">↻ ${student}</span>` : ''}`;
+    container.appendChild(row);
+  });
+}
+
+function saveUrl() {
+  const val = document.getElementById('studentUrl').value.trim();
+  if (val) { localStorage.setItem('dance_student_url', val); toast('URL saved!'); }
+}
+
+function getStudentUrl() {
+  return localStorage.getItem('dance_student_url') || '';
+}
+
+function copyStudentLink() {
+  const url = getStudentUrl();
+  if (!url) { toast('Enter your student page URL first'); return; }
+  navigator.clipboard.writeText(url).then(() => toast('Link copied!'));
+}
+
+function copySlotText() {
+  const wi = getWeekInfo();
+  const open = getAllSlots().filter(x => !x.student);
+  if (!open.length) { toast('No open slots to copy'); return; }
+  const lines = open.map(({day, time}) => {
+    let dateStr = '';
+    if (wi) {
+      const d = new Date(wi.mon);
+      d.setDate(d.getDate() + DAYS.indexOf(day));
+      dateStr = ` (${fmt(d)})`;
+    }
+    return `${day}${dateStr} · ${fmtTime(time)}–${fmtTime(addMins(time,45))}`;
+  });
+  const title = wi ? wi.label : 'Private Lessons';
+  navigator.clipboard.writeText(`Private Lesson Slots — ${title}\n\n${lines.join('\n')}\n\nSign up: ${getStudentUrl()}`).then(() => toast('Copied!'));
+}
+
+function downloadQR() {
+  const url = getStudentUrl();
+  if (!url) { toast('Enter your student page URL first'); return; }
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(url)}`;
+  const a = document.createElement('a');
+  a.href = qrUrl; a.download = 'lesson-signup-qr.png'; a.target = '_blank';
+  a.click();
+}
+
+document.getElementById('weekStart').addEventListener('change', () => { renderPreview(); renderBookings(); renderPending(); });
+
+const today = new Date();
+const mon = getMonday(today.toISOString().split('T')[0]);
+document.getElementById('weekStart').value = mon.toISOString().split('T')[0];
+const storedUrl = localStorage.getItem('dance_student_url');
+if (storedUrl) document.getElementById('studentUrl').value = storedUrl;
+load();
+renderAll();
+</script>
+</body>
+</html>

@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Book a Dance Lesson</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1a1a18;
+    --paper: #f7f5f0;
+    --cream: #ede9e0;
+    --accent: #c8401a;
+    --accent-light: #f5e8e3;
+    --green: #2d6a4f;
+    --green-light: #e8f3ed;
+    --border: #d4cfc4;
+    --muted: #8a8578;
+    --white: #ffffff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--paper); color: var(--ink); min-height: 100vh; }
+
+  header {
+    background: var(--ink);
+    color: var(--white);
+    padding: 2rem 2rem 1.5rem;
+    text-align: center;
+  }
+  header .eyebrow { font-size: 11px; letter-spacing: .15em; text-transform: uppercase; color: #aaa; margin-bottom: .5rem; }
+  header h1 { font-family: 'DM Serif Display', serif; font-size: 2rem; font-weight: 400; }
+  header .sub { font-size: 14px; color: #bbb; margin-top: .5rem; }
+
+  .main { max-width: 520px; margin: 0 auto; padding: 2rem 1.25rem; }
+
+  .week-banner {
+    text-align: center; margin-bottom: 1.75rem;
+    padding: .75rem; background: var(--cream);
+    border-radius: 10px; font-size: 13px; color: var(--muted);
+  }
+  .week-banner strong { color: var(--ink); }
+
+  .slots-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 2rem; }
+
+  .slot-card {
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1rem 1.25rem;
+    display: flex; align-items: center; gap: 1rem;
+    cursor: pointer; transition: border-color .15s, box-shadow .15s;
+    user-select: none;
+  }
+  .slot-card:hover { border-color: var(--accent); box-shadow: 0 2px 12px rgba(200,64,26,.1); }
+  .slot-card.selected { border-color: var(--accent); background: var(--accent-light); }
+  .slot-card.taken { opacity: .45; cursor: not-allowed; background: var(--cream); }
+  .slot-card.taken:hover { border-color: var(--border); box-shadow: none; }
+
+  .slot-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    border: 2px solid var(--border); flex-shrink: 0; transition: all .15s;
+  }
+  .slot-card.selected .slot-dot { background: var(--accent); border-color: var(--accent); }
+  .slot-card.taken .slot-dot { background: var(--border); }
+
+  .slot-info { flex: 1; }
+  .slot-day { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+  .slot-time { font-size: 15px; font-weight: 500; color: var(--ink); margin-top: 1px; }
+  .slot-date { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .slot-taken-label { font-size: 11px; color: var(--muted); font-style: italic; }
+
+  .form-box {
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem;
+  }
+  .form-title { font-size: 13px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 1rem; }
+  .field { margin-bottom: .875rem; }
+  .field label { display: block; font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .05em; }
+  .field input {
+    width: 100%; font-family: 'DM Sans', sans-serif; font-size: 14px;
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 9px 12px; background: var(--paper); color: var(--ink);
+    transition: border-color .15s;
+  }
+  .field input:focus { outline: none; border-color: var(--accent); }
+
+  .submit-btn {
+    width: 100%; font-family: 'DM Serif Display', serif;
+    font-size: 16px; font-weight: 400;
+    background: var(--accent); color: white;
+    border: none; border-radius: 10px;
+    padding: 13px; cursor: pointer;
+    transition: background .15s;
+    letter-spacing: .02em;
+  }
+  .submit-btn:hover { background: #a83314; }
+  .submit-btn:disabled { background: var(--border); cursor: not-allowed; }
+
+  .success-box {
+    display: none; text-align: center;
+    background: var(--green-light); border: 1px solid #a8d5be;
+    border-radius: 12px; padding: 2rem 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .success-box .check { font-size: 2.5rem; margin-bottom: .75rem; }
+  .success-box h2 { font-family: 'DM Serif Display', serif; font-size: 1.4rem; font-weight: 400; color: var(--green); margin-bottom: .5rem; }
+  .success-box p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .success-box .booked-detail { font-size: 14px; font-weight: 500; color: var(--green); margin: .75rem 0; }
+
+  .no-slots { text-align: center; padding: 2.5rem 1rem; color: var(--muted); }
+  .no-slots .icon { font-size: 2rem; margin-bottom: .75rem; }
+  .no-slots p { font-size: 14px; line-height: 1.7; }
+
+  /* Recurring toggle */
+  .recurring-toggle-wrap {
+    margin-bottom: 1rem;
+    border: 1px solid var(--border); border-radius: 10px;
+    background: var(--paper); overflow: hidden;
+    transition: border-color .2s, background .2s;
+  }
+  .recurring-toggle-wrap.active {
+    border-color: var(--green); background: var(--green-light);
+  }
+  .recurring-toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; cursor: pointer; gap: 12px;
+  }
+  .recurring-toggle-label { flex: 1; }
+  .recurring-toggle-label strong { display: block; font-size: 13px; font-weight: 500; color: var(--ink); }
+  .recurring-toggle-label span { font-size: 12px; color: var(--muted); }
+  .recurring-toggle-wrap.active .recurring-toggle-label strong { color: var(--green); }
+
+  /* pill switch */
+  .toggle-switch {
+    width: 40px; height: 22px; border-radius: 11px;
+    background: var(--border); position: relative;
+    flex-shrink: 0; transition: background .2s;
+    cursor: pointer; border: none; padding: 0;
+  }
+  .toggle-switch::after {
+    content: ''; position: absolute;
+    top: 3px; left: 3px;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: white; transition: transform .2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,.2);
+  }
+  .toggle-switch.on { background: var(--green); }
+  .toggle-switch.on::after { transform: translateX(18px); }
+
+  .recurring-note {
+    font-size: 12px; color: var(--green);
+    padding: 0 14px 12px; line-height: 1.5;
+    display: none;
+  }
+  .recurring-toggle-wrap.active .recurring-note { display: block; }
+
+  .success-recurring {
+    margin-top: .75rem; padding: .6rem .875rem;
+    background: rgba(45,106,79,.12); border-radius: 8px;
+    font-size: 12px; color: var(--green); line-height: 1.5; display: none;
+  }
+
+  footer { text-align: center; padding: 2rem; font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">Private Lessons</div>
+  <h1>Book a Session</h1>
+  <div class="sub">45 minutes · Select an open slot below</div>
+</header>
+
+<div class="main">
+
+  <div class="week-banner" id="weekBanner">Loading schedule...</div>
+
+  <div id="successBox" class="success-box">
+    <div class="check">✓</div>
+    <h2>You're booked!</h2>
+    <div class="booked-detail" id="bookedDetail"></div>
+    <p id="successMsg">Your instructor will be in touch to confirm. See you on the dance floor!</p>
+    <div class="success-recurring" id="successRecurring">
+      ↻ Weekly spot requested — your instructor will confirm once approved.
+    </div>
+  </div>
+
+  <div id="slotsList" class="slots-list"></div>
+
+  <div id="formBox" class="form-box" style="display:none">
+    <div class="form-title">Your info</div>
+    <div class="field">
+      <label>Full name</label>
+      <input type="text" id="fieldName" placeholder="Jane Smith" autocomplete="name">
+    </div>
+    <div class="field">
+      <label>Best contact (email or phone)</label>
+      <input type="text" id="fieldContact" placeholder="jane@email.com or 555-0100" autocomplete="email">
+    </div>
+
+    <div class="recurring-toggle-wrap" id="recurringWrap">
+      <div class="recurring-toggle-row" onclick="toggleRecurring()">
+        <div class="recurring-toggle-label">
+          <strong>Make this a weekly spot</strong>
+          <span>Request this time slot every week</span>
+        </div>
+        <button class="toggle-switch" id="toggleSwitch" aria-label="Toggle weekly spot" type="button"></button>
+      </div>
+      <div class="recurring-note" id="recurringNote">
+        Your instructor will review and confirm your weekly spot. Once approved, this time is yours every week — no need to sign up again.
+      </div>
+    </div>
+  </div>
+
+  <button class="submit-btn" id="submitBtn" onclick="submitBooking()" disabled>Select a slot to continue</button>
+
+</div>
+
+<footer>Questions? Reach out to your instructor directly.</footer>
+
+<script>
+const STORAGE_KEY = 'dance_schedule_v1';
+const BOOKINGS_KEY = 'dance_bookings_v1';
+const PENDING_KEY = 'dance_pending_v1';
+const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
+
+let slots = {};
+let bookings = {};
+let pendingRecurring = [];
+let selectedSlot = null;
+let wantsRecurring = false;
+
+function getMonday(d) {
+  const date = new Date(d + 'T12:00:00');
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  date.setDate(date.getDate() + diff);
+  return date;
+}
+function fmt(d) { return d.toLocaleDateString('en-US',{month:'short',day:'numeric',weekday:'short'}); }
+function fmtTime(t) {
+  const [h,m] = t.split(':');
+  const hr = parseInt(h), ampm = hr >= 12 ? 'PM' : 'AM', h12 = hr % 12 || 12;
+  return m === '00' ? `${h12} ${ampm}` : `${h12}:${m} ${ampm}`;
+}
+function addMins(t, mins) {
+  const [h,m] = t.split(':').map(Number);
+  const total = h*60+m+mins, nh = Math.floor(total/60)%24, nm = total%60;
+  return `${String(nh).padStart(2,'0')}:${String(nm).padStart(2,'0')}`;
+}
+
+function load() {
+  try {
+    const d = localStorage.getItem(STORAGE_KEY);
+    if (d) slots = JSON.parse(d);
+    const b = localStorage.getItem(BOOKINGS_KEY);
+    if (b) bookings = JSON.parse(b);
+    const p = localStorage.getItem(PENDING_KEY);
+    if (p) pendingRecurring = JSON.parse(p);
+  } catch(e) {}
+}
+
+function saveBookings() {
+  localStorage.setItem(BOOKINGS_KEY, JSON.stringify(bookings));
+  localStorage.setItem(PENDING_KEY, JSON.stringify(pendingRecurring));
+}
+
+function getWeekKey() {
+  const today = new Date();
+  const mon = getMonday(today.toISOString().split('T')[0]);
+  return mon.toISOString().split('T')[0];
+}
+
+function isBooked(day, time) {
+  const wk = getWeekKey();
+  return bookings[`${wk}-${day}-${time}`];
+}
+
+function getOpenSlots() {
+  const all = [];
+  DAYS.forEach(day => {
+    [...(slots[day]||[])].sort((a,b) => a.time.localeCompare(b.time)).forEach(s => {
+      if (!s.student) all.push({day, time: s.time});
+    });
+  });
+  return all;
+}
+
+function toggleRecurring() {
+  wantsRecurring = !wantsRecurring;
+  const sw = document.getElementById('toggleSwitch');
+  const wrap = document.getElementById('recurringWrap');
+  sw.classList.toggle('on', wantsRecurring);
+  wrap.classList.toggle('active', wantsRecurring);
+}
+
+function render() {
+  const open = getOpenSlots();
+  const today = new Date();
+  const mon = getMonday(today.toISOString().split('T')[0]);
+  const fri = new Date(mon); fri.setDate(fri.getDate()+4);
+
+  document.getElementById('weekBanner').innerHTML =
+    `Open slots for <strong>week of ${mon.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${fri.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</strong>`;
+
+  const container = document.getElementById('slotsList');
+  container.innerHTML = '';
+
+  if (!open.length) {
+    container.innerHTML = `<div class="no-slots"><div class="icon">📅</div><p>No open slots this week.<br>Check back soon or contact your instructor directly.</p></div>`;
+    document.getElementById('submitBtn').style.display = 'none';
+    return;
+  }
+
+  open.forEach(({day, time}) => {
+    const taken = isBooked(day, time);
+    const d = new Date(mon);
+    d.setDate(d.getDate() + DAYS.indexOf(day));
+    const card = document.createElement('div');
+    card.className = `slot-card${taken ? ' taken' : ''}`;
+    card.dataset.slot = `${day}-${time}`;
+    card.innerHTML = `
+      <div class="slot-dot"></div>
+      <div class="slot-info">
+        <div class="slot-day">${day}</div>
+        <div class="slot-time">${fmtTime(time)} – ${fmtTime(addMins(time,45))}</div>
+        <div class="slot-date">${fmt(d)}</div>
+      </div>
+      ${taken ? `<div class="slot-taken-label">Taken</div>` : ''}`;
+    if (!taken) {
+      card.addEventListener('click', () => selectSlot(day, time, card));
+    }
+    container.appendChild(card);
+  });
+}
+
+function selectSlot(day, time, card) {
+  document.querySelectorAll('.slot-card.selected').forEach(c => c.classList.remove('selected'));
+  card.classList.add('selected');
+  selectedSlot = {day, time};
+  // reset toggle
+  wantsRecurring = false;
+  document.getElementById('toggleSwitch').classList.remove('on');
+  document.getElementById('recurringWrap').classList.remove('active');
+  document.getElementById('formBox').style.display = 'block';
+  document.getElementById('submitBtn').disabled = false;
+  document.getElementById('submitBtn').textContent = `Book ${day} ${fmtTime(time)}`;
+  document.getElementById('formBox').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function submitBooking() {
+  const name = document.getElementById('fieldName').value.trim();
+  const contact = document.getElementById('fieldContact').value.trim();
+  if (!name || !contact) { alert('Please fill in your name and contact info.'); return; }
+  if (!selectedSlot) return;
+
+  const {day, time} = selectedSlot;
+  const wk = getWeekKey();
+  bookings[`${wk}-${day}-${time}`] = {name, contact, bookedAt: new Date().toISOString(), recurringRequested: wantsRecurring};
+
+  if (wantsRecurring) {
+    const already = pendingRecurring.find(p => p.day === day && p.time === time);
+    if (!already) {
+      pendingRecurring.push({day, time, name, contact, requestedAt: new Date().toISOString()});
+    }
+  }
+
+  saveBookings();
+
+  const mon = getMonday(new Date().toISOString().split('T')[0]);
+  const d = new Date(mon);
+  d.setDate(d.getDate() + DAYS.indexOf(day));
+
+  // Show full booking detail with student name and lesson info
+  document.getElementById('bookedDetail').innerHTML =
+    `<strong>${name}</strong><br>${day}, ${fmt(d)}<br>${fmtTime(time)} – ${fmtTime(addMins(time,45))} · 45 min private lesson`;
+
+  if (wantsRecurring) {
+    document.getElementById('successRecurring').style.display = 'block';
+    document.getElementById('successMsg').textContent = 'Your instructor will review your weekly spot request shortly.';
+  }
+
+  document.getElementById('successBox').style.display = 'block';
+  document.getElementById('slotsList').style.display = 'none';
+  document.getElementById('formBox').style.display = 'none';
+  document.getElementById('submitBtn').style.display = 'none';
+  document.getElementById('successBox').scrollIntoView({behavior:'smooth'});
+
+  render();
+}
+
+load();
+render();
+</script>
+</body>
+</html>
