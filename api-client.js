@@ -85,7 +85,7 @@ export async function loadScheduleWithRetry(maxAttempts = 8) {
  * Poll the server so teacher and students stay in sync.
  * onStatus(message | null) — null clears the status line
  */
-export function subscribeSchedule(callback, { onStatus } = {}) {
+export function subscribeSchedule(callback, { onStatus, intervalMs = 8000 } = {}) {
   let cancelled = false;
   let attempt = 0;
 
@@ -122,7 +122,7 @@ export function subscribeSchedule(callback, { onStatus } = {}) {
   }
 
   poll();
-  const id = setInterval(poll, 8000);
+  const id = setInterval(poll, intervalMs);
 
   return () => {
     cancelled = true;

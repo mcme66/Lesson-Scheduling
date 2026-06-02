@@ -91,20 +91,25 @@
   }
   .assign-form button:hover { background: #235a42; }
 
-  .add-row { display: flex; gap: 6px; margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--cream); }
-  .add-row select.time-select {
-    flex: 1; font-family: 'DM Sans', sans-serif; font-size: 12px;
-    border: 1px solid var(--border); border-radius: 6px; padding: 7px 8px;
-    background: var(--white); min-width: 0; cursor: pointer; color: var(--ink);
+  .add-time-panel { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--cream); }
+  .add-time-panel summary {
+    font-size: 12px; font-weight: 500; color: var(--ink); cursor: pointer;
+    list-style: none; user-select: none;
   }
-  .add-row select.time-select:focus { outline: none; border-color: var(--accent); }
-  .add-row button {
-    font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500;
-    background: var(--ink); color: white; border: none; border-radius: 6px;
-    padding: 7px 12px; cursor: pointer; flex-shrink: 0;
+  .add-time-panel summary::-webkit-details-marker { display: none; }
+  .add-time-panel summary::before { content: '+ '; color: var(--accent); }
+  .add-time-panel[open] summary::before { content: '− '; }
+  .add-time-panel summary.muted { color: var(--muted); cursor: default; }
+  .time-picks {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+    margin-top: 8px; max-height: 132px; overflow-y: auto;
   }
-  .add-row button:hover { background: #333; }
-  .add-row button:disabled { background: var(--border); cursor: not-allowed; }
+  .time-pick-btn {
+    font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500;
+    border: 1px solid var(--border); border-radius: 6px; padding: 6px 4px;
+    background: var(--white); color: var(--ink); cursor: pointer; text-align: center;
+  }
+  .time-pick-btn:hover { border-color: var(--accent); background: var(--accent-light); }
 
   .bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
 
@@ -337,6 +342,8 @@ const TIME_OPTIONS = (() => {
 let slots = {Monday:[],Tuesday:[],Wednesday:[],Thursday:[],Friday:[]};
 let bookings = {};
 let pendingRecurring = [];
+let lastSlotsJson = '';
+let pendingGridUpdate = false;
 
 function save() {
   saveSchedule({ slots })
@@ -385,8 +392,32 @@ function getWeekInfo() {
   return { mon, fri, label: `Week of ${fmt(mon)} – ${fmt(fri)}` };
 }
 
-function renderAll() {
-  renderGrid(); renderPreview(); renderBookings(); renderPending();
+function isGridInteractionActive() {
+  if (document.querySelector('#dayGrid details.add-time-panel[open]')) return true;
+  if (document.querySelector('#dayGrid .assign-form[style*="flex"]')) return true;
+  const ae = document.activeElement;
+  return !!(ae && document.getElementById('dayGrid')?.contains(ae));
+}
+
+function shouldRefreshGrid(force) {
+  if (force) return true;
+  if (JSON.stringify(slots) === lastSlotsJson) return false;
+  if (isGridInteractionActive()) {
+    pendingGridUpdate = true;
+    return false;
+  }
+  return true;
+}
+
+function renderAll({ forceGrid = false } = {}) {
+  if (shouldRefreshGrid(forceGrid)) {
+    lastSlotsJson = JSON.stringify(slots);
+    pendingGridUpdate = false;
+    renderGrid();
+  }
+  renderPreview();
+  renderBookings();
+  renderPending();
 }
 
 function getWeekKey() {
@@ -446,7 +477,7 @@ function approveRecurring(idx) {
   pendingRecurring.splice(idx, 1);
   save();
   savePending();
-  renderAll();
+  renderAll({ forceGrid: true });
   toast(`${name} approved — weekly spot locked in for ${day} ${fmtTime(time)}`);
 }
 window.approveRecurring = approveRecurring;
@@ -579,20 +610,21 @@ function renderGrid() {
 
     const used = new Set(sorted.map(s => s.time));
     const available = TIME_OPTIONS.filter(t => !used.has(t));
-    const timeOpts = available
-      .map(t => `<option value="${t}">${fmtTime(t)}</option>`)
+
+    const picksHtml = available
+      .map(t => `<button type="button" class="time-pick-btn" data-day="${day}" data-time="${t}">${fmtTime(t)}</button>`)
       .join('');
 
     col.innerHTML = `
-      <div class="day-head">${day.slice(0,3)}</div>
+      <div class="day-head">${day}</div>
       <div class="slot-list">${chipsHtml || '<span style="font-size:11px;color:var(--muted)">No slots yet</span>'}</div>
-      <div class="add-row">
-        <select class="time-select" id="ti-${day}" aria-label="Add time on ${day}">
-          <option value="">${available.length ? 'Choose time…' : 'All times added'}</option>
-          ${timeOpts}
-        </select>
-        <button type="button" onclick="addSlot('${day}')" ${available.length ? '' : 'disabled'}>Add</button>
-      </div>`;
+      ${available.length
+        ? `<details class="add-time-panel" id="add-panel-${day}">
+            <summary>Add time</summary>
+            <div class="time-picks">${picksHtml}</div>
+          </details>`
+        : '<p style="font-size:12px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--cream)">All times added</p>'}`;
+
     grid.appendChild(col);
   });
 }
@@ -610,39 +642,37 @@ function assignStudent(day, time, id) {
   if (!inp || !inp.value.trim()) return;
   const s = (slots[day]||[]).find(x => x.time === time);
   if (s) s.student = inp.value.trim();
-  save(); renderAll();
+  save(); renderAll({ forceGrid: true });
 }
 window.assignStudent = assignStudent;
 
 function clearStudent(day, time) {
   const s = (slots[day]||[]).find(x => x.time === time);
   if (s) delete s.student;
-  save(); renderAll();
+  save(); renderAll({ forceGrid: true });
 }
 window.clearStudent = clearStudent;
 
-function addSlot(day) {
-  const sel = document.getElementById('ti-' + day);
-  const val = sel?.value;
-  if (!val) {
-    toast('Choose a time from the list');
+function addSlot(day, time) {
+  if (!time) {
+    toast('Choose a time');
     return;
   }
   if (!slots[day]) slots[day] = [];
-  if (slots[day].find(x => x.time === val)) {
+  if (slots[day].find(x => x.time === time)) {
     toast('That time is already on ' + day);
     return;
   }
-  slots[day].push({ time: val });
+  slots[day].push({ time });
   save();
-  renderAll();
-  toast(`Added ${day} ${fmtTime(val)}`);
+  renderAll({ forceGrid: true });
+  toast(`Added ${day} ${fmtTime(time)}`);
 }
 window.addSlot = addSlot;
 
 function removeSlot(day, time) {
   slots[day] = (slots[day]||[]).filter(x => x.time !== time);
-  save(); renderAll();
+  save(); renderAll({ forceGrid: true });
 }
 window.removeSlot = removeSlot;
 
@@ -749,6 +779,20 @@ document.getElementById('weekStart').value = mon.toISOString().split('T')[0];
 const storedUrl = localStorage.getItem('dance_student_url');
 if (storedUrl) document.getElementById('studentUrl').value = storedUrl;
 
+document.getElementById('dayGrid').addEventListener('click', (e) => {
+  const btn = e.target.closest('.time-pick-btn');
+  if (!btn) return;
+  addSlot(btn.dataset.day, btn.dataset.time);
+});
+
+document.getElementById('dayGrid').addEventListener('focusout', () => {
+  setTimeout(() => {
+    if (pendingGridUpdate && !isGridInteractionActive()) {
+      renderAll({ forceGrid: true });
+    }
+  }, 0);
+});
+
 function applyData(data) {
   slots = data.slots || { Monday: [], Tuesday: [], Wednesday: [], Thursday: [], Friday: [] };
   bookings = data.bookings || {};
@@ -762,7 +806,10 @@ function setSyncStatus(message) {
   el.style.color = message ? 'var(--accent)' : '';
 }
 
-subscribeSchedule(applyData, { onStatus: setSyncStatus });
+subscribeSchedule(applyData, { onStatus: setSyncStatus, intervalMs: 20000 });
+
+lastSlotsJson = JSON.stringify(slots);
+renderGrid();
 </script>
 </body>
 </html>
