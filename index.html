@@ -32,13 +32,59 @@
   header h1 { font-family: 'DM Serif Display', serif; font-size: 2rem; font-weight: 400; }
   header .sub { font-size: 14px; color: #bbb; margin-top: .5rem; }
 
+  .header-info {
+    max-width: 480px; margin: 1.25rem auto 0;
+    padding-top: 1.25rem; border-top: 1px solid rgba(255,255,255,.12);
+    text-align: left;
+  }
+  .header-pricing {
+    display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center;
+    gap: 6px 14px; font-size: 14px; color: #ccc; margin-bottom: 1rem;
+  }
+  .header-pricing .price-tag {
+    font-family: 'DM Serif Display', serif; font-size: 1.35rem; color: var(--white);
+  }
+  .header-pricing .price-isd {
+    font-size: 13px; color: #aaa;
+    padding: 3px 10px; background: rgba(255,255,255,.08); border-radius: 20px;
+  }
+  .header-pricing .price-isd strong { color: var(--white); font-weight: 500; }
+  .header-notes {
+    list-style: none; font-size: 13px; color: #aaa; line-height: 1.65;
+  }
+  .header-notes li {
+    padding-left: 14px; position: relative; margin-bottom: 6px;
+  }
+  .header-notes li:last-child { margin-bottom: 0; }
+  .header-notes li::before {
+    content: '·'; position: absolute; left: 0; color: #666;
+  }
+  .header-notes a {
+    color: var(--white); text-decoration: none; font-weight: 500;
+    border-bottom: 1px solid rgba(255,255,255,.25);
+  }
+  .header-notes a:hover { border-bottom-color: var(--white); }
+
   .main { max-width: 520px; margin: 0 auto; padding: 2rem 1.25rem; }
 
   .week-banner {
-    text-align: center; margin-bottom: 1.75rem;
-    padding: .75rem; background: var(--cream);
+    margin-bottom: 1.75rem;
+    padding: .75rem 1rem; background: var(--cream);
     border-radius: 10px; font-size: 13px; color: var(--muted);
   }
+  .week-nav-bar {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+  }
+  .week-nav-btn {
+    width: 34px; height: 34px; flex-shrink: 0;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--white); color: var(--ink);
+    font-size: 20px; line-height: 1; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; padding: 0;
+  }
+  .week-nav-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .week-nav-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .week-nav-text { flex: 1; text-align: center; min-width: 0; line-height: 1.4; }
   .week-banner strong { color: var(--ink); }
 
   .slots-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 2rem; }
@@ -171,6 +217,8 @@
   }
 
   footer { text-align: center; padding: 2rem; font-size: 12px; color: var(--muted); }
+  footer a { color: var(--ink); text-decoration: none; font-weight: 500; }
+  footer a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -179,12 +227,30 @@
   <div class="eyebrow">Private Lessons</div>
   <h1>Book a Session</h1>
   <div class="sub">45 minutes · Select an open slot below</div>
+
+  <div class="header-info">
+    <div class="header-pricing">
+      <span class="price-tag">$74</span>
+      <span>per lesson</span>
+      <span class="price-isd">ISD students <strong>$69</strong></span>
+    </div>
+    <ul class="header-notes">
+      <li>Payment is handled directly with your instructor after booking.</li>
+      <li>Need to cancel? Text Allen at <a href="tel:+18015130401">(801) 513-0401</a> — he can drop your lesson for you.</li>
+      <li>Use the week arrows below to book up to 2 weeks ahead.</li>
+      <li>Want the same time every week? Toggle “Make this a weekly spot” when you book.</li>
+    </ul>
+  </div>
 </header>
 
 <div class="main">
 
   <div class="week-banner" id="syncBanner" style="display:none;margin-bottom:.75rem;font-size:13px"></div>
-  <div class="week-banner" id="weekBanner">Loading schedule...</div>
+  <div class="week-banner week-nav-bar" id="weekBanner">
+    <button type="button" class="week-nav-btn" id="weekPrev" aria-label="Previous week">‹</button>
+    <span class="week-nav-text" id="weekBannerText">Loading schedule…</span>
+    <button type="button" class="week-nav-btn" id="weekNext" aria-label="Next week">›</button>
+  </div>
 
   <div id="successBox" class="success-box">
     <div class="check">✓</div>
@@ -228,7 +294,7 @@
 
 </div>
 
-<footer>Questions? Reach out to your instructor directly.</footer>
+<footer>Private lessons with Allen · Questions? <a href="tel:+18015130401">(801) 513-0401</a></footer>
 
 <script type="module">
 import { loadSchedule, saveSchedule, subscribeSchedule } from './api-client.js';
@@ -240,6 +306,33 @@ let bookings = {};
 let pendingRecurring = [];
 let selectedSlot = null;
 let wantsRecurring = false;
+let weekOffset = 0;
+const MAX_WEEK_OFFSET = 2;
+
+function getViewMonday() {
+  const today = new Date();
+  const mon = getMonday(today.toISOString().split('T')[0]);
+  mon.setDate(mon.getDate() + weekOffset * 7);
+  return mon;
+}
+
+function getWeekKey() {
+  return getViewMonday().toISOString().split('T')[0];
+}
+
+function changeWeek(delta) {
+  weekOffset = Math.max(0, Math.min(MAX_WEEK_OFFSET, weekOffset + delta));
+  selectedSlot = null;
+  wantsRecurring = false;
+  document.getElementById('toggleSwitch')?.classList.remove('on');
+  document.getElementById('recurringWrap')?.classList.remove('active');
+  document.getElementById('formBox').style.display = 'none';
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Select a slot to continue';
+  render();
+}
+window.changeWeek = changeWeek;
 
 function getMonday(d) {
   const date = new Date(d + 'T12:00:00');
@@ -258,12 +351,6 @@ function addMins(t, mins) {
   const [h,m] = t.split(':').map(Number);
   const total = h*60+m+mins, nh = Math.floor(total/60)%24, nm = total%60;
   return `${String(nh).padStart(2,'0')}:${String(nm).padStart(2,'0')}`;
-}
-
-function getWeekKey() {
-  const today = new Date();
-  const mon = getMonday(today.toISOString().split('T')[0]);
-  return mon.toISOString().split('T')[0];
 }
 
 function getRecurringStudent(day, time) {
@@ -302,12 +389,14 @@ window.toggleRecurring = toggleRecurring;
 
 function render() {
   const displaySlots = getAllDisplaySlots();
-  const today = new Date();
-  const mon = getMonday(today.toISOString().split('T')[0]);
-  const fri = new Date(mon); fri.setDate(fri.getDate()+4);
+  const mon = getViewMonday();
+  const fri = new Date(mon);
+  fri.setDate(fri.getDate() + 4);
 
-  document.getElementById('weekBanner').innerHTML =
-    `Open slots for <strong>week of ${mon.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${fri.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</strong>`;
+  document.getElementById('weekBannerText').innerHTML =
+    `Open slots for <strong>week of ${mon.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${fri.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</strong>`;
+  document.getElementById('weekPrev').disabled = weekOffset === 0;
+  document.getElementById('weekNext').disabled = weekOffset === MAX_WEEK_OFFSET;
 
   const container = document.getElementById('slotsList');
   container.innerHTML = '';
@@ -406,7 +495,7 @@ async function submitBooking() {
     return;
   }
 
-  const mon = getMonday(new Date().toISOString().split('T')[0]);
+  const mon = getViewMonday();
   const d = new Date(mon);
   d.setDate(d.getDate() + DAYS.indexOf(day));
 
@@ -451,6 +540,9 @@ function setSyncStatus(message) {
 }
 
 subscribeSchedule(applyData, { onStatus: setSyncStatus });
+
+document.getElementById('weekPrev').addEventListener('click', () => changeWeek(-1));
+document.getElementById('weekNext').addEventListener('click', () => changeWeek(1));
 </script>
 </body>
 </html>
