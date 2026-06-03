@@ -1,11 +1,18 @@
 const API_URL = new URL('api/schedule', window.location.origin).href;
-const STATIC_URL = new URL('data/schedule.json', window.location.origin).href;
-const REQUEST_TIMEOUT_MS = 20000;
 
-let readOnly = false;
+// Render's free tier can take 30–60s to wake from spin-down. Use a generous
+// per-request timeout so we don't give up before the server is back online
+// and accidentally show empty/stale data.
+const REQUEST_TIMEOUT_MS = 60000;
+
+// Track whether we've ever successfully loaded real data from the API.
+// Once we have, we must NEVER replace the in-memory data with a placeholder
+// — that's how cold-start blips used to look like "the database was wiped".
+let hasLoadedFromApi = false;
 
 export function isReadOnly() {
-  return readOnly;
+  // Saving is only blocked if we've never been able to reach the API.
+  return !hasLoadedFromApi;
 }
 
 function fetchWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
@@ -29,31 +36,19 @@ function normalize(data) {
   };
 }
 
-async function loadStaticSchedule() {
-  const res = await fetchWithTimeout(STATIC_URL, { cache: 'no-store' });
-  if (!res.ok) throw new Error(`Static schedule not found (${res.status})`);
-  readOnly = true;
-  return normalize(await res.json());
-}
-
 export async function loadSchedule() {
-  try {
-    const res = await fetchWithTimeout(API_URL, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`API error (${res.status})`);
-    readOnly = false;
-    return normalize(await res.json());
-  } catch (apiErr) {
-    try {
-      return await loadStaticSchedule();
-    } catch {
-      throw apiErr;
-    }
-  }
+  const res = await fetchWithTimeout(API_URL, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`API error (${res.status})`);
+  const data = normalize(await res.json());
+  hasLoadedFromApi = true;
+  return data;
 }
 
 export async function saveSchedule(update) {
-  if (readOnly) {
-    throw new Error('Schedule is read-only. Deploy with the Node server (npm start) to save changes.');
+  if (!hasLoadedFromApi) {
+    throw new Error(
+      'Cannot save — the schedule has not loaded yet. Wait for the server to wake up, then try again.'
+    );
   }
   const res = await fetchWithTimeout(API_URL, {
     method: 'PUT',
@@ -61,7 +56,6 @@ export async function saveSchedule(update) {
     body: JSON.stringify(update)
   });
   if (!res.ok) throw new Error(`Save failed (${res.status})`);
-  readOnly = false;
   return normalize(await res.json());
 }
 
@@ -83,7 +77,12 @@ export async function loadScheduleWithRetry(maxAttempts = 8) {
 
 /**
  * Poll the server so teacher and students stay in sync.
- * onStatus(message | null) — null clears the status line
+ * onStatus(message | null) — null clears the status line.
+ *
+ * IMPORTANT: when a poll fails (e.g. server is mid-cold-start), we DO NOT
+ * invoke the callback with placeholder/empty data. The caller's existing
+ * in-memory schedule stays intact and a status message is shown instead.
+ * This prevents the "data looks wiped" flash on Render free-tier wake-ups.
  */
 export function subscribeSchedule(callback, { onStatus, intervalMs = 8000 } = {}) {
   let cancelled = false;
@@ -94,30 +93,19 @@ export function subscribeSchedule(callback, { onStatus, intervalMs = 8000 } = {}
     attempt++;
     if (attempt === 1) onStatus?.('Connecting to schedule…');
     try {
-      const data = await loadScheduleWithRetry(attempt === 1 ? 6 : 2);
-      onStatus?.(
-        readOnly
-          ? 'Viewing schedule (read-only). Start the server with npm start to enable saving.'
-          : null
-      );
+      const data = await loadScheduleWithRetry(attempt === 1 ? 8 : 3);
+      onStatus?.(null);
       callback(data);
     } catch (e) {
       console.error('Schedule sync error:', e);
-      const msg =
-        e.name === 'AbortError'
-          ? 'Server is slow to respond (may be waking up). Retrying…'
-          : 'Could not reach the schedule API. Retrying…';
-      onStatus?.(msg);
-      try {
-        callback(await loadStaticSchedule());
-        onStatus?.(
-          'Showing schedule from data/schedule.json only. Edits require the Node server (npm start on Render).'
-        );
-      } catch {
-        onStatus?.(
-          'Cannot load schedule. This app must run as a Node site (Render: npm start), not static files only.'
-        );
-      }
+      const waking = e.name === 'AbortError' || /Failed to fetch|NetworkError/i.test(String(e));
+      onStatus?.(
+        hasLoadedFromApi
+          ? 'Lost connection to the server. Retrying…'
+          : waking
+            ? 'Server is waking up (free tier cold start can take ~60s). Retrying…'
+            : 'Could not reach the schedule API. Retrying…'
+      );
     }
   }
 

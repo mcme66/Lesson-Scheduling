@@ -1,9 +1,36 @@
 const express = require('express');
 const path = require('path');
-const { storageMode, readRaw, writeRaw } = require('./storage');
+const { storageMode, readRaw, writeRaw, useSupabase } = require('./storage');
 
 const ROOT = __dirname;
 const PORT = process.env.PORT || 3000;
+
+// Render sets RENDER=true on its hosts. We also honor NODE_ENV=production.
+// In production we REFUSE to run on ephemeral file storage, because Render's
+// free tier wipes the container filesystem on every spin-down, which silently
+// destroys the schedule. Bail out loudly so the misconfiguration is obvious.
+const IS_PRODUCTION =
+  process.env.RENDER === 'true' || process.env.NODE_ENV === 'production';
+
+if (IS_PRODUCTION && !useSupabase()) {
+  console.error('');
+  console.error('============================================================');
+  console.error(' FATAL: Supabase environment variables are missing.');
+  console.error('');
+  console.error(' Without them this server stores data on the container disk,');
+  console.error(' which Render ERASES every time the free-tier service spins');
+  console.error(' down. Your schedule would be wiped on every cold start.');
+  console.error('');
+  console.error(' Fix: in the Render dashboard, open this service →');
+  console.error('   Environment → add both of these and redeploy:');
+  console.error('     SUPABASE_URL');
+  console.error('     SUPABASE_SERVICE_ROLE_KEY');
+  console.error('');
+  console.error(' See SUPABASE_SETUP.md for step-by-step instructions.');
+  console.error('============================================================');
+  console.error('');
+  process.exit(1);
+}
 
 const DEFAULT = {
   slots: {
@@ -76,8 +103,26 @@ const app = express();
 app.use(express.json({ limit: '256kb' }));
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, storage: storageMode() });
+  const mode = storageMode();
+  // If we're somehow running in production without Supabase, surface it as
+  // an unhealthy check so Render shows the deploy as failing rather than
+  // silently serving an app whose data will vanish at next spin-down.
+  if (IS_PRODUCTION && mode !== 'supabase') {
+    return res.status(503).json({
+      ok: false,
+      storage: mode,
+      error:
+        'Server is using ephemeral file storage in production. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY on Render. See SUPABASE_SETUP.md.'
+    });
+  }
+  res.json({ ok: true, storage: mode });
 });
+
+// Never expose data/ as a static path. The bundled data/schedule.json is the
+// empty initial seed used only as a local-dev fallback; serving it would let
+// browsers fetch a fake "empty" schedule whenever the API is slow to respond,
+// making it look like the database was wiped.
+app.use('/data', (_req, res) => res.status(404).end());
 
 app.get('/', (_req, res) => {
   res.redirect('/index.html');
@@ -118,10 +163,11 @@ app.use(express.static(ROOT));
 app.listen(PORT, '0.0.0.0', () => {
   const mode = storageMode();
   console.log(`Lesson scheduler running on port ${PORT}`);
-  console.log(`  Storage:       ${mode}${mode === 'file' ? ' (set SUPABASE_* env on Render for persistence)' : ''}`);
+  console.log(`  Storage:       ${mode}${mode === 'supabase' ? ' (persistent)' : ' (LOCAL FILE — not persistent on hosted environments)'}`);
   console.log(`  Student page:  http://localhost:${PORT}/index.html`);
   console.log(`  Teacher page:  http://localhost:${PORT}/teacher.html`);
   if (mode === 'file') {
-    console.log('  See SUPABASE_SETUP.md to configure the database.');
+    console.log('  NOTE: data lives in data/schedule.json and will be lost on any redeploy or container restart.');
+    console.log('  See SUPABASE_SETUP.md to enable persistent storage.');
   }
 });

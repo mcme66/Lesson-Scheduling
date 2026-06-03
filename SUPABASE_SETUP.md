@@ -52,7 +52,7 @@ Your lesson schedule is stored in **Supabase Postgres** so it survives Render fr
    { "ok": true, "storage": "supabase" }
    ```
 
-   If `storage` is `"file"`, env vars are missing and data will **not** persist on spin-down.
+   **Safety net:** if the env vars are missing on Render (or on any host that sets `NODE_ENV=production`), the server now refuses to start and prints a big `FATAL: Supabase environment variables are missing.` block in the logs. This is deliberate — it prevents the previous failure mode where the app silently fell back to writing to the container's disk, which Render then wiped on every spin-down. If your deploy is showing as failed in Render with that message, the fix is to add the two env vars and redeploy.
 
 ---
 
@@ -105,8 +105,10 @@ where id = 'main';
 
 | Problem | What to check |
 |--------|----------------|
-| `/api/health` shows `"storage": "file"` | Env vars on Render; redeploy after adding them |
+| Render deploy fails with `FATAL: Supabase environment variables are missing` | Add `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in Environment, then redeploy |
+| `/api/health` returns 503 with `"storage": "file"` | Same as above — env vars missing in production |
 | Empty schedule after deploy | Row `main` missing → re-run `supabase/schema.sql` |
+| Schedule looks empty for ~30–60s after a long idle period, then comes back | Normal Render free-tier cold start — the client now waits and retries instead of showing stale empty data |
 | "Could not load schedule" in logs | Wrong URL/key; key must be **service_role** |
 | RLS errors | Re-run schema SQL; do not add public RLS policies |
 
