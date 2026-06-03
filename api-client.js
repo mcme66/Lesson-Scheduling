@@ -36,9 +36,20 @@ function normalize(data) {
   };
 }
 
+async function safeJson(res) {
+  try { return await res.json(); } catch { return null; }
+}
+
 export async function loadSchedule() {
   const res = await fetchWithTimeout(API_URL, { cache: 'no-store' });
-  if (!res.ok) throw new Error(`API error (${res.status})`);
+  if (!res.ok) {
+    const body = await safeJson(res);
+    const detail = body?.detail || body?.error || res.statusText || '';
+    const err = new Error(`API error ${res.status}${detail ? ': ' + detail : ''}`);
+    err.status = res.status;
+    err.serverDetail = detail;
+    throw err;
+  }
   const data = normalize(await res.json());
   hasLoadedFromApi = true;
   return data;
@@ -88,6 +99,30 @@ export function subscribeSchedule(callback, { onStatus, intervalMs = 8000 } = {}
   let cancelled = false;
   let attempt = 0;
 
+  async function describeFailure(e) {
+    // Network-level failure (server not running at all, or aborted timeout).
+    if (e.name === 'AbortError' || /Failed to fetch|NetworkError/i.test(String(e))) {
+      return hasLoadedFromApi
+        ? 'Lost connection to the server. Retrying…'
+        : 'Server is not responding (free tier cold start can take ~60s, or the deploy may have crashed). Retrying…';
+    }
+    // Server responded with an error — try to enrich it via /api/health so we
+    // can tell the user EXACTLY what's wrong (e.g. ephemeral storage in prod,
+    // missing Supabase env vars, broken credentials).
+    if (typeof e.status === 'number') {
+      let healthHint = '';
+      try {
+        const hr = await fetch(new URL('api/health', window.location.origin).href, { cache: 'no-store' });
+        const hb = await hr.json().catch(() => null);
+        if (hb?.error) healthHint = ` — ${hb.error}`;
+        else if (hb?.storage) healthHint = ` — storage: ${hb.storage}`;
+      } catch { /* ignore */ }
+      const detail = e.serverDetail ? ` — ${e.serverDetail}` : '';
+      return `Server returned ${e.status}${detail}${healthHint}. Retrying…`;
+    }
+    return `Could not reach the schedule API (${e.message || 'unknown error'}). Retrying…`;
+  }
+
   async function poll() {
     if (cancelled) return;
     attempt++;
@@ -98,14 +133,7 @@ export function subscribeSchedule(callback, { onStatus, intervalMs = 8000 } = {}
       callback(data);
     } catch (e) {
       console.error('Schedule sync error:', e);
-      const waking = e.name === 'AbortError' || /Failed to fetch|NetworkError/i.test(String(e));
-      onStatus?.(
-        hasLoadedFromApi
-          ? 'Lost connection to the server. Retrying…'
-          : waking
-            ? 'Server is waking up (free tier cold start can take ~60s). Retrying…'
-            : 'Could not reach the schedule API. Retrying…'
-      );
+      onStatus?.(await describeFailure(e));
     }
   }
 

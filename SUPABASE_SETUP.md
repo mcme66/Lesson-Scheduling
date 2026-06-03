@@ -25,12 +25,16 @@ Your lesson schedule is stored in **Supabase Postgres** so it survives Render fr
 
 ## 3. Get API credentials
 
-1. Go to **Project Settings** (gear icon) → **API**.
-2. Copy:
-   - **Project URL** → `SUPABASE_URL`
-   - **service_role** key (under "Project API keys", labeled secret) → `SUPABASE_SERVICE_ROLE_KEY`
+1. Go to **Project Settings** (gear icon).
+2. Copy the **Project URL** → use it as `SUPABASE_URL`.
+3. Copy a secret key. Supabase offers two formats and **either one works** — pick whichever your dashboard shows you:
 
-**Important:** Use the **service_role** key only on the server (Render env vars). Never put it in `index.html`, `teacher.html`, or any public repo. The browser never talks to Supabase directly.
+   - **New format (recommended)** → **API Keys** → under **Secret keys**, copy a key that starts with `sb_secret_...`. Set it as the env var `SUPABASE_SECRET_KEY`.
+   - **Legacy format** → **API** → under **Project API keys**, copy the **service_role** key (a long JWT). Set it as the env var `SUPABASE_SERVICE_ROLE_KEY`.
+
+   Internally the server accepts `SUPABASE_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, or `SUPABASE_KEY` — they're all sent to Supabase as the same bearer token. Set whichever one matches the key format you copied.
+
+**Important:** This is a **secret** key that bypasses Row Level Security. It must live on the server only (Render env vars or a local `.env`). Never put it in `index.html`, `teacher.html`, or any public repo. Do **not** use the "Publishable" or "anon" key — those don't have write permission to the schedule table.
 
 ---
 
@@ -43,7 +47,7 @@ Your lesson schedule is stored in **Supabase Postgres** so it survives Render fr
    | Key | Value |
    |-----|--------|
    | `SUPABASE_URL` | Your Project URL from step 3 |
-   | `SUPABASE_SERVICE_ROLE_KEY` | Your service_role key from step 3 |
+   | `SUPABASE_SECRET_KEY` *(or `SUPABASE_SERVICE_ROLE_KEY`)* | The secret key you copied in step 3 — either an `sb_secret_...` key (new format) or a `service_role` JWT (legacy). Either works; pick the env var name that matches what you copied. |
 
 4. Save. Render will redeploy automatically.
 5. After deploy, open `https://YOUR-SERVICE.onrender.com/api/health` — you should see:
@@ -105,11 +109,12 @@ where id = 'main';
 
 | Problem | What to check |
 |--------|----------------|
-| Render deploy fails with `FATAL: Supabase environment variables are missing` | Add `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in Environment, then redeploy |
-| `/api/health` returns 503 with `"storage": "file"` | Same as above — env vars missing in production |
+| Render deploy fails with `FATAL: Supabase environment variables are missing` | Add `SUPABASE_URL` and either `SUPABASE_SECRET_KEY` (new `sb_secret_...` format) or `SUPABASE_SERVICE_ROLE_KEY` (legacy JWT) in Environment, then redeploy |
+| Browser shows "Server is not responding…" forever | Service crashed on Render. Open Render → Logs and look for the FATAL block; usually means env vars still aren't set. |
+| Browser shows "Server returned 500 — …" with a message | The API is up but Supabase is rejecting it. The message usually points at the cause: wrong URL, wrong key format (you may have pasted the "Publishable"/"anon" key by mistake), or the `schedule` table doesn't exist (re-run `supabase/schema.sql`). |
+| `/api/health` returns 503 with `"storage": "file"` | Env vars missing in production — same fix as the first row |
 | Empty schedule after deploy | Row `main` missing → re-run `supabase/schema.sql` |
-| Schedule looks empty for ~30–60s after a long idle period, then comes back | Normal Render free-tier cold start — the client now waits and retries instead of showing stale empty data |
-| "Could not load schedule" in logs | Wrong URL/key; key must be **service_role** |
+| Schedule looks empty for ~30–60s after a long idle period, then comes back | Normal Render free-tier cold start — the client waits and retries instead of showing stale empty data |
 | RLS errors | Re-run schema SQL; do not add public RLS policies |
 
 ---

@@ -22,9 +22,13 @@ if (IS_PRODUCTION && !useSupabase()) {
   console.error(' down. Your schedule would be wiped on every cold start.');
   console.error('');
   console.error(' Fix: in the Render dashboard, open this service →');
-  console.error('   Environment → add both of these and redeploy:');
-  console.error('     SUPABASE_URL');
-  console.error('     SUPABASE_SERVICE_ROLE_KEY');
+  console.error('   Environment → add the following and redeploy:');
+  console.error('     SUPABASE_URL         (e.g. https://abcd.supabase.co)');
+  console.error('     SUPABASE_SECRET_KEY  (an "sb_secret_..." key from the');
+  console.error('                           Supabase API Keys page — or paste');
+  console.error('                           a legacy service_role JWT under');
+  console.error('                           SUPABASE_SERVICE_ROLE_KEY instead;');
+  console.error('                           both formats work)');
   console.error('');
   console.error(' See SUPABASE_SETUP.md for step-by-step instructions.');
   console.error('============================================================');
@@ -137,8 +141,12 @@ app.get('/api/schedule', async (_req, res) => {
       JSON.stringify(pruned.pending) !== JSON.stringify(current.pending);
     res.json(changed ? await writeData(pruned) : pruned);
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Could not load schedule' });
+    console.error('GET /api/schedule failed:', e);
+    res.status(500).json({
+      error: 'Could not load schedule',
+      detail: e.message,
+      storage: storageMode()
+    });
   }
 });
 
@@ -153,8 +161,12 @@ app.put('/api/schedule', async (req, res) => {
     });
     res.json(await writeData(merged));
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Could not save schedule' });
+    console.error('PUT /api/schedule failed:', e);
+    res.status(500).json({
+      error: 'Could not save schedule',
+      detail: e.message,
+      storage: storageMode()
+    });
   }
 });
 

@@ -8,15 +8,51 @@ const SCHEDULE_ROW_ID = 'main';
 
 let supabase = null;
 
+// Accept any of the supported names so users don't have to care which
+// API-key format Supabase shows them in the dashboard.
+//
+//   SUPABASE_SECRET_KEY      → new format ("sb_secret_..." from API Keys page)
+//   SUPABASE_SERVICE_ROLE_KEY → legacy JWT format (still shown as "Legacy keys")
+//   SUPABASE_KEY             → catch-all alias
+//
+// All three are sent to the Supabase client as the same bearer token — the
+// client doesn't care which format the string is.
+function getSupabaseKey() {
+  return (
+    process.env.SUPABASE_SECRET_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_KEY ||
+    ''
+  );
+}
+
+// Normalize the URL the user pasted into the env var. The Supabase JS client
+// wants just the project base URL (https://abcd.supabase.co); it appends
+// /rest/v1/ itself. Accidentally including /rest/v1/ or a trailing slash is a
+// common mistake that produces 404s on every query, so we strip those here.
+function getSupabaseUrl() {
+  const raw = (process.env.SUPABASE_URL || '').trim();
+  if (!raw) return '';
+  return raw
+    .replace(/\/+$/, '')           // trailing slashes
+    .replace(/\/rest\/v1$/i, '')    // accidental REST path suffix
+    .replace(/\/auth\/v1$/i, '');   // same for auth path, just in case
+}
+
 function useSupabase() {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  return Boolean(url && key);
+  return Boolean(getSupabaseUrl() && getSupabaseKey());
 }
 
 function getSupabase() {
   if (!supabase && useSupabase()) {
-    supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+    const url = getSupabaseUrl();
+    if (url !== (process.env.SUPABASE_URL || '').trim()) {
+      console.warn(
+        `Note: SUPABASE_URL contained an API path suffix; using ${url} instead. ` +
+          `You can set SUPABASE_URL to just the project base URL.`
+      );
+    }
+    supabase = createClient(url, getSupabaseKey(), {
       auth: { persistSession: false, autoRefreshToken: false }
     });
   }
